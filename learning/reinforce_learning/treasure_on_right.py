@@ -6,12 +6,12 @@ import time
 
 np.random.seed(2)  # reproducible
 
-N_STATES = 6  #  1维度状态空间大小
+N_STATES = 6  # 1维度状态空间大小
 ACTIONS = ['left', 'right']  # available actions  动作空间
 EPSILON = 0.9  # greedy police 百分之90的情况我会按照Q表的最优值选择行为，百分之10的时间随机选择行为
 ALPHA = 0.1  # learning rate 决定这次的误差有多少是要被学习的
 GAMMA = 0.9  # discount factor 对未来reward的衰减值。gamma越接近1，机器对未来的reward越敏感
-MAX_EPISODES = 13  # maximum episodes 最大回合数
+MAX_EPISODES = 1  # maximum episodes 最大回合数
 FRESH_TIME = 0.3  # fresh time for one move 移动间隔时间
 
 
@@ -90,6 +90,7 @@ def rl():
 
             A = choose_action(S, q_table)  # 根据当前状态选择 action
             S_, R = get_env_feedback(S, A)  # 实施行为并得到环境的反馈
+            test_list.append((S, A, S_, R))
             q_predict = q_table.loc[S, A]  # 估算的（状态-行为）值，q_table 代表预测值
             if S_ != 'terminal':  # next state is not terminal
                 q_target = R + GAMMA * q_table.iloc[S_, :].max()  # 实际的（状态-行为)值
@@ -107,6 +108,9 @@ def rl():
 
 
 if __name__ == '__main__':
+    test_list = []
     q_table = rl()
+    test_df = pd.DataFrame(test_list, columns=['S', 'A', 'S_', 'R'])
+    test_df.to_csv('../data/treasure_on_right.csv', index=False)
     print('\r\nQ-table:\n')
     print(q_table)
