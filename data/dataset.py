@@ -6,6 +6,7 @@ import os
 
 class CriteoDataset(Dataset):
     """
+    加载数据工具类，继承 Dataset抽象类，更高效的加载 Criteo dataset
     Custom dataset class for Criteo dataset in order to use efficient 
     dataloader tool provided by PyTorch.
     """ 
@@ -32,6 +33,9 @@ class CriteoDataset(Dataset):
             self.test_data = data.iloc[:, :-1].values
     
     def __getitem__(self, idx):
+        """重写 抽象类的方法
+        :param idx: 维度列索引
+        """
         if self.train:
             dataI, targetI = self.train_data[idx, :], self.target[idx]
             Xi = torch.from_numpy(dataI.astype(np.int32)).unsqueeze(-1)
