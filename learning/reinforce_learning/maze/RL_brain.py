@@ -26,7 +26,7 @@ class QLearningTable:
         self.q_table = pd.DataFrame(columns=self.actions, dtype=np.float64)  # 初始 q_table
 
     def choose_action(self, observation):
-        """ 选择 action
+        """ 选择 action 相当于预测
 
         Args:
             observation: 观察到的当前的state
@@ -45,7 +45,7 @@ class QLearningTable:
             action = np.random.choice(self.actions)
         return action
 
-    def learn(self, s, a, r, s_):
+    def learn(self, s, a, r, s_, done):
         """ 根据 已知值更新 Q table
 
         Args:
@@ -59,7 +59,7 @@ class QLearningTable:
         """
         self.check_state_exist(s_)  # 检测 q_table 中是否存在 s_
         q_predict = self.q_table.loc[s, a]  # 采取当前行动后，预测得分
-        if s_ != 'terminal':
+        if not done:
             q_target = r + self.gamma * self.q_table.loc[s_, :].max()  # next state is not terminal
         else:
             q_target = r  # next state is terminal
@@ -78,3 +78,73 @@ class QLearningTable:
                 )
             )
 
+
+import sys
+from maze_env import Maze
+import time
+
+
+def maze_update(env, RL, episodes=100, learn=True):
+    # 学习 100 回合
+    for episode in range(episodes):
+        # 初始化 state 的观测值
+        observation = env.reset()
+
+        while True:
+            # 更新可视化环境
+            env.render()
+
+            # RL 大脑根据 state 的观测值挑选 action
+            action = RL.choose_action(str(observation))
+
+            # 探索者在环境中实施这个 action, 并得到环境返回的下一个 state 观测值, reward 和 done (是否是掉下地狱或者升上天堂)
+            observation_, reward, done = env.step(action)
+
+            if learn:
+                # RL 从这个序列 (state, action, reward, state_) 中学习
+                RL.learn(str(observation), action, reward, str(observation_), done)
+
+            # 将下一个 state 的值传到下一次循环
+            observation = observation_
+
+            # 如果掉下地狱或者升上天堂, 这回合就结束了
+            if done:  # 回合结束，跳出本轮循环
+                break
+        # time.sleep(5)
+    if not learn:
+        if reward == -1:
+            print('测试失败')
+        elif reward == 1:
+            print('测试成功')
+    else:
+        print('学习结束')
+    env.destroy()
+    time.sleep(2)
+
+
+def maze_test():
+    # env = Maze()  # 生成环境获取参数
+    # RL = QLearningTable(actions=list(range(env.n_actions)))  # 生成Qtable
+
+    RL = QLearningTable(actions=list(range(4)))  # 生成Qtable
+
+    for i in range(10):  # 测试10次，每次学10轮
+        train_env = Maze('train')
+        # train_env.after(100, lambda: maze_update(train_env, RL, 10, True))  # 学习10轮
+        maze_update(train_env, RL, 10, True)  # 学习10轮
+        print(i, 'q_table长度：', len(RL.q_table))
+        test_env = Maze('test')
+        start = time.time()
+        # test_env.after(100, lambda: maze_update(test_env, RL, 1, False))  # 测试1轮
+        maze_update(test_env, RL, 1, False)  # 测试1轮
+        end = time.time()
+        print(i, '测试时间：', end - start)
+    # env.mainloop()
+
+    # print('q_table索引', RL.q_table.index)
+    # print('q_table列名', RL.q_table.columns)
+    print(RL.q_table.head())
+
+
+if __name__ == "__main__":
+    maze_test()

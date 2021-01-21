@@ -1,4 +1,5 @@
 """
+充当 Q 现实的作用
 Reinforcement learning maze example.
 环境设定
     Red rectangle:          explorer.
@@ -24,15 +25,20 @@ MAZE_W = 4  # grid width
 
 
 class Maze(tk.Tk, object):
-    def __init__(self):
+    def __init__(self, title='maze'):
         super(Maze, self).__init__()
-        self.action_space = ['u', 'd', 'l', 'r']
-        self.n_actions = len(self.action_space)
-        self.title('maze')
+        self.action_space = ['u', 'd', 'l', 'r']  # 行为列表
+        self.n_actions = len(self.action_space)  # 行为种类
+        self.n_features = 2  # 特征长度 当前位置与目标位置的坐标差
+        self.title(title)
         self.geometry('{0}x{1}'.format(MAZE_H * UNIT, MAZE_H * UNIT))
         self._build_maze()
 
     def _build_maze(self):
+        """ 创建网格，画图
+        Returns:
+
+        """
         self.canvas = tk.Canvas(self, bg='white',
                                 height=MAZE_H * UNIT,
                                 width=MAZE_W * UNIT)
@@ -87,7 +93,8 @@ class Maze(tk.Tk, object):
             origin[0] + 15, origin[1] + 15,
             fill='red')
         # return observation
-        return self.canvas.coords(self.rect)
+        s = self.canvas.coords(self.rect)  # 当前位置
+        return (np.array(s[:2]) - np.array(self.canvas.coords(self.oval)[:2])) / (MAZE_H * UNIT)  # 与目标的相对位置
 
     def step(self, action):
         s = self.canvas.coords(self.rect)
@@ -113,16 +120,14 @@ class Maze(tk.Tk, object):
         if s_ == self.canvas.coords(self.oval):
             reward = 1
             done = True
-            s_ = 'terminal'
         elif s_ in [self.canvas.coords(self.hell1), self.canvas.coords(self.hell2)]:
             reward = -1
             done = True
-            s_ = 'terminal'
         else:
             reward = 0
             done = False
 
-        return s_, reward, done
+        return (np.array(s_[:2]) - np.array(self.canvas.coords(self.oval)[:2])) / (MAZE_H * UNIT), reward, done
 
     def render(self):
         time.sleep(0.1)
@@ -134,13 +139,18 @@ def update():
         s = env.reset()
         while True:
             env.render()
-            a = 1
-            s, r, done = env.step(a)
+
+            a_list = [0, 1, 2, 3]  # 行为列表
+            a = np.random.choice(a_list)  # 随机采取行动
+            s_, r, done = env.step(a)  # 绘制采取行动之后的状态
+            print(s, a, s_, r, done)  # 组成 Q target 真实的反馈
+            s = s_
             if done:
                 break
 
 
 if __name__ == '__main__':
     env = Maze()
-    env.after(100, update)
+    # env.after(100, update)
+    update()
     env.mainloop()
