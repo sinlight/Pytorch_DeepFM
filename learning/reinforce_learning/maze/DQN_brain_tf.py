@@ -238,7 +238,7 @@ def run_maze():
     for episode in range(300):
         # initial observation
         observation = env.reset()
-
+        episode_step = 0
         while True:
             # fresh env
             env.render()
@@ -261,6 +261,8 @@ def run_maze():
             if done:
                 break
             step += 1
+            episode_step +=1
+        print(episode, 'episode,', episode_step, 'step_counter, 结束')
 
     # end of game
     print('game over')
