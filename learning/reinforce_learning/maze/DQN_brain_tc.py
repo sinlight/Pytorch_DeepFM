@@ -273,3 +273,11 @@ if __name__ == '__main__':
     print(RL.policy_net.state_dict()['fc1.bias'])
     env = Maze('test')
     RL = maze_update(env, RL, episodes=2, learn=False)
+
+
+    from torch.utils.data import Dataset
+
+
+
+
+
