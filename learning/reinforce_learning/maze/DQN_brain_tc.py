@@ -74,7 +74,7 @@ class DQN(object):
 
     def __init__(self, n_actions, n_features, memory_size=500, batch_size=32,
                  learning_rate=0.01, gamma=0.9, e_greedy=0.9, e_greedy_increment=None,
-                 target_update_step=10, output_graph=False, ):
+                 ddqn=False, target_update_step=10, output_graph=False, ):
 
         self.n_actions = n_actions
         self.n_features = n_features
@@ -88,6 +88,7 @@ class DQN(object):
         self.epsilon_increment = e_greedy_increment  # epsilon 的增量
         self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max  # 是否开启探索模式, 并逐步减少探索次数
 
+        self.ddqn = ddqn
         self.target_update_step = target_update_step  # 更换 target_net 的步数
         self.learn_step_counter = 0  # 记录学习次数 (用于判断是否更换 target_net 参数)
 
@@ -182,8 +183,18 @@ class DQN(object):
 
         # 计算下个状态的 target_net 得分
         next_state_values = torch.zeros(self.batch_size)  # size(batch_size)
-        target_net_out = self.target_net(not_final_next_state_batch)  # size(nf_batch_size,n_actions)
-        next_state_values[not_final_flag] = target_net_out.max(1)[0].detach()  # size(batch_size)，赋值并取消追踪
+        next_target_net_out = self.target_net(not_final_next_state_batch)  # size(nf_batch_size,n_actions)
+
+        if not self.ddqn:  # Natural DQN
+            next_state_values[not_final_flag] = next_target_net_out.max(1)[0].detach()  # size(batch_size)，赋值并取消追踪
+        else:  # Double DQN
+            with torch.no_grad():
+                next_policy_net_out = self.policy_net(not_final_next_state_batch)  # size(nf_batch_size,n_actions)
+                next_policy_net_action = next_policy_net_out.max(1)[1]  # size(batch_size)，预估网络选择行动
+
+                # 目标网络选择指标size(batch_size, 1)
+                next_target_net_value = next_target_net_out.gather(dim=1, index=next_policy_net_action.unsqueeze(1))
+                next_state_values[not_final_flag] = next_target_net_value.squeeze(1)  # size(batch_size)，赋值
 
         # 计算下一个状态的总得分 现实
         expected_state_action_values = (next_state_values * self.gamma) + reward_batch  # size(batch_size)
@@ -264,7 +275,7 @@ if __name__ == '__main__':
     n_features = env.n_features
     RL = DQN(n_actions, n_features, memory_size=256, batch_size=8,
              learning_rate=0.01, gamma=0.9, e_greedy=0.9, e_greedy_increment=None,
-             target_update_step=10, output_graph=False)
+             ddqn=False, target_update_step=10, output_graph=False)
 
     print(RL.policy_net.state_dict()['fc1.bias'])
     RL = maze_update(env, RL, episodes=100, learn=True)
@@ -274,10 +285,4 @@ if __name__ == '__main__':
     env = Maze('test')
     RL = maze_update(env, RL, episodes=2, learn=False)
 
-
     from torch.utils.data import Dataset
-
-
-
-
-
