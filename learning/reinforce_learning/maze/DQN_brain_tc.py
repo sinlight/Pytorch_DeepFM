@@ -13,7 +13,6 @@ from maze_env import Maze
 # 定义命名元组 Transition 为环境中的单个转换，将 状态(state,action）: 结果(next_state,reward）
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward', 'done'))
 
-
 # 循环缓冲区类别，保存最近观察到的转换，有点儿像dataset
 class ReplayMemory(object):
     """ 缓存最近观察到的转换 """
@@ -70,11 +69,59 @@ class MLP(nn.Module):
         return output
 
 
+class Dueling_MLP(nn.Module):
+    """ 充当 Q-table 的作用 """
+
+    def __init__(self, n_features, n_actions):
+        """ 构造 两个 3 层神经网络
+
+        Args:
+            n_features: 特征数量，输入的维度
+            n_actions: 行为数量
+        """
+
+        super(Dueling_MLP, self).__init__()
+
+        self.value_fc1 = nn.Linear(n_features, 8)
+        self.value_fc2 = nn.Linear(8, 16)
+        self.value_head = nn.Linear(16, 1)
+
+        self.adv_fc1 = nn.Linear(n_features, 8)
+        self.adv_fc2 = nn.Linear(8, 16)
+        self.adv_head = nn.Linear(16, n_actions)
+
+    # 单元素或批次计算下次action
+    def forward(self, input):
+        """ 前向预测
+
+        Args:
+            input: size = (batch_size, n_feature)
+
+        Returns:
+            output: size = (batch_size, n_actions)
+        """
+        # value # 专门分析 state 的 Value
+        value = F.relu(self.value_fc1(input.float()))
+        value = F.relu(self.value_fc2(value))
+        value = self.value_head(value)  # n_features, 1
+
+        # adv # 专门分析每种动作的 Advantage
+        adv = F.relu(self.adv_fc1(input.float()))
+        adv = F.relu(self.adv_fc2(adv))
+        adv = self.adv_head(adv)  # n_features, n_actions
+
+        # output Q = V(s) + A(s,a)
+        # 合并 V 和 A, 为了不让 A 直接学成了 Q, 我们减掉了 A 的均值
+        output = value + (adv - torch.mean(adv, axis=1, keepdim=True))
+
+        return output
+
+
 class DQN(object):
 
     def __init__(self, n_actions, n_features, memory_size=500, batch_size=32,
                  learning_rate=0.01, gamma=0.9, e_greedy=0.9, e_greedy_increment=None,
-                 ddqn=False, target_update_step=10, output_graph=False, ):
+                 ddqn=False, dueling=False, target_update_step=10, output_graph=False, ):
 
         self.n_actions = n_actions
         self.n_features = n_features
@@ -89,6 +136,7 @@ class DQN(object):
         self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max  # 是否开启探索模式, 并逐步减少探索次数
 
         self.ddqn = ddqn
+        self.dueling = dueling
         self.target_update_step = target_update_step  # 更换 target_net 的步数
         self.learn_step_counter = 0  # 记录学习次数 (用于判断是否更换 target_net 参数)
 
@@ -96,8 +144,12 @@ class DQN(object):
         self.memory = ReplayMemory(self.memory_size)
 
         # 创建 [policy_net, target_net]
-        self.policy_net = MLP(self.n_features, self.n_actions)
-        self.target_net = MLP(self.n_features, self.n_actions)
+        if self.dueling:
+            self.policy_net = MLP(self.n_features, self.n_actions)
+            self.target_net = MLP(self.n_features, self.n_actions)
+        else:
+            self.policy_net = Dueling_MLP(self.n_features, self.n_actions)
+            self.target_net = Dueling_MLP(self.n_features, self.n_actions)
 
         # 输出 tensorboard 文件
         if output_graph:
@@ -275,7 +327,7 @@ if __name__ == '__main__':
     n_features = env.n_features
     RL = DQN(n_actions, n_features, memory_size=256, batch_size=8,
              learning_rate=0.01, gamma=0.9, e_greedy=0.9, e_greedy_increment=None,
-             ddqn=False, target_update_step=10, output_graph=False)
+             ddqn=True, dueling=True, target_update_step=10, output_graph=False)
 
     print(RL.policy_net.state_dict()['fc1.bias'])
     RL = maze_update(env, RL, episodes=100, learn=True)
